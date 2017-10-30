@@ -1,0 +1,7 @@
+---
+- name: ensure nc is installed
+  yum:
+    name: nc
+    state: present
+- name: run my custom script
+  script: scripts/can_reach.sh www.google.com 80 1

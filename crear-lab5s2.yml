@@ -1,0 +1,65 @@
+---
+- name: Asegurar existe id del alumno
+  hosts: localhost
+  tasks:
+    - name: ver si existe el fichero
+      stat:
+        path: env_vars/traineeid.yml
+      register: p
+
+    - name: si no existe, lo creamos
+      shell: 'echo "trainee_id: $RANDOM"> env_vars/traineeid.yml'
+      when: not p.stat.exists or not p.stat.isreg
+
+- name: Asegurar que la libreria boto está instalada
+  hosts: localhost
+  become: true
+  tasks:
+    - name: instalar python pip
+      yum:
+        name: python2-pip
+        state: present
+
+    - name: instalar modulo boto
+      pip:
+        name: boto
+        state: present
+
+- name: crear máquina de laboratorio
+  hosts: localhost
+  vars_files:
+    - env_vars/aws_vault.yml
+    - env_vars/traineeid.yml
+
+  tasks:
+    - name: crear vm's en cloud
+      ec2:
+        key_name: "{{ aws_keypair_name }}"
+        group:
+            - "allin"
+        aws_secret_key: "{{ aws_secret }}"
+        aws_access_key: "{{ aws_access }}"
+        region: "eu-west-1"
+        instance_tags:
+            Name: "{{ item }}"
+            Curso: "ansible"
+        instance_type: "t2.nano"
+        image: "{{ aws_ec2_ami }}"
+        vpc_subnet_id: "{{ aws_ec2_subnet }}"
+        count_tag:
+            Name: "{{ item }}"
+        exact_count: 1
+        assign_public_ip: yes
+        wait: yes
+      register: ec2_instances
+      with_items:
+        - "{{ trainee_id }}_dia2lab5_01"
+
+    - name: vaciamos inventario lab
+      shell: 'echo "" > inventories/dia2lab5.yml'
+
+    - name: guardamos las ip's en inventario
+      shell: "echo {{ item.instances[0].public_ip }} >> inventories/dia2lab5.yml"
+      with_items: '{{ ec2_instances.results }}'
+
+

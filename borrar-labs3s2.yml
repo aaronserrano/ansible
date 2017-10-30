@@ -1,0 +1,58 @@
+---
+- name: Asegurar que la libreria boto está instalada
+  hosts: localhost
+  become: true
+  tasks:
+    - name: instalar python pip
+      yum:
+        name: python2-pip
+        state: present
+
+    - name: instalar modulo boto
+      pip:
+        name: boto
+        state: present
+
+- name: eliminar máquina de laboratorio
+  hosts: localhost
+  vars_files:
+    - env_vars/aws_vault.yml
+    - env_vars/traineeid.yml
+
+  tasks:
+    - name: conseguir id's de EC2 a borrar
+      ec2_remote_facts:
+        filters:
+          instance-state-name: running
+          "tag:Name": "{{ item }}"
+        region: "eu-west-1"
+        aws_secret_key: "{{ aws_secret }}"
+        aws_access_key: "{{ aws_access }}"
+      with_items:
+        - "{{ trainee_id }}_dia2lab3_01"
+        - "{{ trainee_id }}_dia2lab3_02"
+        - "{{ trainee_id }}_dia2lab3_03"
+      register: ec2_instances
+
+    - debug:
+        msg: "{{ ec2_instances }}"
+
+    - name: eliminar vm's en cloud
+      ec2:
+        aws_secret_key: "{{ aws_secret }}"
+        aws_access_key: "{{ aws_access }}"
+        region: "eu-west-1"
+        instance_ids: "{{ item.instances[0].id }}"
+        state: absent
+        wait: no
+      register: ec2_instances
+      with_items: '{{ ec2_instances.results }}'
+
+    - name: borramos inventario lab
+      file:
+        path: inventories/dia2lab3.yml
+        state: absent
+
+
+
+
